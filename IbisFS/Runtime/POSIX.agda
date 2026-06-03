@@ -3,6 +3,7 @@ module IbisFS.Runtime.POSIX where
 open import IbisFS.Core
 open import IbisFS.Basic
 open import IbisFS.Verified
+open import IbisFS.Runtime.Result using (Result; err; ok) public
 open import Janus.FFI using (_>>=_; return)
 open import Agda.Builtin.IO using (IO)
 open import Agda.Builtin.String using (String)
@@ -72,12 +73,7 @@ data FSError : Set where
   permissionDenied : FSError
   otherFSError     : String → FSError
 
--- Result E A: o un errore, o un valore. È il tipo che spinge il caller
--- a ragionare esplicitamente sul caso di fallimento — niente più
--- eccezioni runtime non gestite.
-data Result (E A : Set) : Set where
-  err : E → Result E A
-  ok  : A → Result E A
+-- Result viene da IbisFS.Runtime.Result (condiviso con S3, Azure Blob, …).
 
 -- ══════════════════════════════════════════════════════════════════
 -- LA "BUCCIA IMPURA": System.Directory + Data.Text.IO, GUARDED
@@ -91,22 +87,23 @@ data Result (E A : Set) : Set where
 {-# FOREIGN GHC import qualified Data.Text.IO as TIO #-}
 {-# FOREIGN GHC import qualified Control.Exception as E #-}
 {-# FOREIGN GHC import System.IO.Error (isDoesNotExistError, isPermissionError) #-}
+-- Importiamo il Result condiviso dal modulo IbisFS.Runtime.Result.
+-- Il MAlonzo-qualified name è prevedibile: MAlonzo.Code.<dot.path>.
+{-# FOREIGN GHC import qualified MAlonzo.Code.IbisFS.Runtime.Result as RR #-}
 {-# FOREIGN GHC
 data FSError = ENOENT | EACCES | OtherFSError T.Text
-data Result e a = Err e | Ok a
 
-guarded :: IO a -> IO (Result FSError a)
-guarded act = E.catch (Ok <$> act) handler
+guarded :: IO a -> IO (RR.Result FSError a)
+guarded act = E.catch (RR.Ok <$> act) handler
   where
-    handler :: E.IOException -> IO (Result FSError a)
+    handler :: E.IOException -> IO (RR.Result FSError a)
     handler e
-      | isDoesNotExistError e = pure (Err ENOENT)
-      | isPermissionError  e  = pure (Err EACCES)
-      | otherwise             = pure (Err (OtherFSError (T.pack (show e))))
+      | isDoesNotExistError e = pure (RR.Err ENOENT)
+      | isPermissionError  e  = pure (RR.Err EACCES)
+      | otherwise             = pure (RR.Err (OtherFSError (T.pack (show e))))
 #-}
 
 {-# COMPILE GHC FSError = data FSError (ENOENT | EACCES | OtherFSError) #-}
-{-# COMPILE GHC Result  = data Result  (Err | Ok) #-}
 
 postulate
   rawDoesFileExist : String → IO Bool

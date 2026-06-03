@@ -7,6 +7,10 @@ _build/
 *.hi
 *.o
 
+# Compiled example binaries (Examples/POSIX, Examples/S3, …)
+/Examples/POSIX
+/Examples/S3
+
 # direnv / nix
 .direnv/
 result
