@@ -1,0 +1,16 @@
+# Agda build artefacts
+*.agdai
+MAlonzo/
+_build/
+
+# GHC object files
+*.hi
+*.o
+
+# direnv / nix
+.direnv/
+result
+result-*
+
+# Windows zone identifiers (WSL)
+*:Zone.Identifier

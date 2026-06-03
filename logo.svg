@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260">
+
+  <!-- ── acqua: pelo dell'acqua e onde leggere ──────────────────── -->
+  <line x1="15" y1="222" x2="185" y2="222"
+        stroke="#7BA8C9" stroke-width="1.5" opacity="0.7"/>
+  <path d="M 30 222 Q 45 218 60 222" fill="none"
+        stroke="#7BA8C9" stroke-width="1" opacity="0.6"/>
+  <path d="M 140 222 Q 155 218 170 222" fill="none"
+        stroke="#7BA8C9" stroke-width="1" opacity="0.6"/>
+
+  <!-- ── corpo crema (Threskiornis aethiopicus, ibis sacro) ──── -->
+  <ellipse cx="90" cy="130" rx="52" ry="32" fill="#F5E6D3"/>
+
+  <!-- coda con piume nere alle punte -->
+  <path d="M 38 130 L 18 138 L 28 130 L 16 128 L 30 122 Z"
+        fill="#1A0A00"/>
+
+  <!-- ── ala ───────────────────────────────────────────────────── -->
+  <path d="M 62 108 Q 92 96 128 114 Q 108 142 76 138 Q 66 124 62 108 Z"
+        fill="#E8D4B8"/>
+  <path d="M 62 108 Q 92 96 128 114"
+        fill="none" stroke="#C9B595" stroke-width="1"/>
+  <!-- penne nere sull'ala (tratto distintivo dell'ibis sacro) -->
+  <path d="M 76 138 L 70 148 L 82 142 Z" fill="#1A0A00"/>
+  <path d="M 82 142 L 78 152 L 90 146 Z" fill="#1A0A00"/>
+
+  <!-- ── collo: nero, fonde nella testa ─────────────────────────── -->
+  <path d="M 126 116 Q 135 90 148 70 L 156 73 Q 144 92 138 120 Z"
+        fill="#1A0A00"/>
+
+  <!-- ── testa ─────────────────────────────────────────────────── -->
+  <ellipse cx="152" cy="65" rx="11" ry="9" fill="#1A0A00"/>
+
+  <!-- ── BECCO: lunga curva nera verso il basso (la firma) ────── -->
+  <path d="M 159 65
+           C 174 72, 180 92, 176 112
+           C 174 120, 171 122, 168 119
+           C 172 104, 170 84, 156 71 Z"
+        fill="#1A0A00"/>
+
+  <!-- occhio bianco sulla testa scura -->
+  <circle cx="149"   cy="63" r="2"   fill="#F5E6D3"/>
+  <circle cx="149.5" cy="63" r="0.9" fill="#1A0A00"/>
+
+  <!-- ── zampe ─────────────────────────────────────────────────── -->
+  <line x1="74"  y1="158" x2="72"  y2="222"
+        stroke="#3D2000" stroke-width="2.5"/>
+  <line x1="106" y1="158" x2="109" y2="222"
+        stroke="#3D2000" stroke-width="2.5"/>
+  <!-- piedi: dita verso avanti e dietro -->
+  <line x1="72"  y1="222" x2="64"  y2="228"
+        stroke="#3D2000" stroke-width="2" stroke-linecap="round"/>
+  <line x1="72"  y1="222" x2="80"  y2="228"
+        stroke="#3D2000" stroke-width="2" stroke-linecap="round"/>
+  <line x1="109" y1="222" x2="101" y2="228"
+        stroke="#3D2000" stroke-width="2" stroke-linecap="round"/>
+  <line x1="109" y1="222" x2="117" y2="228"
+        stroke="#3D2000" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- ── i tre operatori del reticolo, riflessi nell'acqua ────── -->
+  <!-- ∪ unione · ∩ intersezione · \ differenza —
+       l'algebra che fa di IbisFS qualcosa di diverso da una mappa parziale. -->
+  <text x="55"  y="250" text-anchor="middle"
+        font-family="Georgia,'Times New Roman',serif"
+        font-size="15" font-weight="bold" fill="#3D5C7A">∪</text>
+  <text x="100" y="250" text-anchor="middle"
+        font-family="Georgia,'Times New Roman',serif"
+        font-size="15" font-weight="bold" fill="#3D5C7A">∩</text>
+  <text x="145" y="250" text-anchor="middle"
+        font-family="Georgia,'Times New Roman',serif"
+        font-size="15" font-weight="bold" fill="#3D5C7A">\</text>
+</svg>
