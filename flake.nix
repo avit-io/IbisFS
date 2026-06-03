@@ -7,15 +7,25 @@
       url  = "github:avit-io/piforge";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # path:../janus non funziona in pure-eval (Nix risolve da /nix/store).
+    # Per dev locale usiamo git+file con path assoluto; quando janus sarà
+    # pubblicato su GitHub questa riga diventerà "github:avit-io/janus".
+    janus = {
+      url = "git+file:///home/a.vitturi/personal/janus";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.piforge.follows = "piforge";
+    };
   };
 
-  outputs = { self, nixpkgs, piforge }:
+  outputs = { self, nixpkgs, piforge, janus }:
     let
       system = "x86_64-linux";
       pkgs   = nixpkgs.legacyPackages.${system};
 
-      # IbisFS.Core è ALGEBRA PURA: niente IO, niente Janus. Solo stdlib.
-      # I runtime (POSIX via Janus, S3, Azure) vivranno in moduli/repo separati.
+      # IbisFS.Core/Basic/Plan9 sono algebra pura. IbisFS.Verified
+      # dipende da Janus (Janus.Refine come witness packager). Per
+      # semplicità il .agda-lib esposto richiede janus sempre —
+      # se un consumer volesse solo Core potrebbe ignorare la dep.
       ibisfsLib = pkgs.stdenv.mkDerivation {
         name      = "ibisfs-agda-lib";
         src       = builtins.path { path = ./.; name = "ibisfs-src"; };
@@ -23,26 +33,14 @@
         installPhase = ''
           mkdir -p $out
           cp -r IbisFS $out/
-          printf 'name: ibisfs\ninclude: .\ndepend: standard-library\n' \
+          printf 'name: ibisfs\ninclude: .\ndepend: standard-library janus\n' \
             > $out/ibisfs.agda-lib
         '';
       };
 
-      stdlib28 = piforge.packages.${system}."stdlib-28";
-
-      # Agda 2.8 scrive _build/ accanto al .agda-lib più vicino → store EROFS.
-      # Stessa strategia di janus / cardea / agdovana.
-      copyStdlib = ''
-        _cache="''${XDG_CACHE_HOME:-$HOME/.cache}/piforge"
-        _stdlib="$_cache/stdlib-2.3"
-        if [ ! -d "$_stdlib" ]; then
-          echo "ibisfs: copying stdlib 2.3 to $_stdlib (one-time setup)..." >&2
-          mkdir -p "$_stdlib"
-          cp -r ${stdlib28}/. "$_stdlib/"
-          chmod -R u+w "$_stdlib"
-        fi
-      '';
-
+      # Copia scrivibile della libreria ibisfs per i consumer.
+      # _stdlib e _jns sono impostati da janus.lib.mkShell tramite il
+      # suo shellHook concatenato (copyStdlib + copyJanus).
       copyIbis = ''
         _ibs="$_cache/ibisfs-src"
         if [ ! -d "$_ibs" ]; then
@@ -50,7 +48,7 @@
           mkdir -p "$_ibs"
           cp -r ${ibisfsLib}/. "$_ibs/"
           chmod -R u+w "$_ibs"
-          printf 'name: ibisfs\ninclude: .\ndepend: standard-library\n' \
+          printf 'name: ibisfs\ninclude: .\ndepend: standard-library janus\n' \
             > "$_ibs/ibisfs.agda-lib"
         fi
       '';
@@ -62,29 +60,23 @@
         default = ibisfsLib;
       };
 
-      devShells.${system}.default = piforge.lib.agda.mkShell {
+      # Sviluppo di ibisfs in-tree: janus.lib.mkShell ci dà stdlib +
+      # janus + GHC. Il nostro ibisfs.agda-lib in-tree è trovato per
+      # traversal — non serve registrarlo in libraries.
+      devShells.${system}.default = janus.lib.mkShell {
         inherit pkgs;
-        version             = "v28";
-        useRuntimeLibraries = true;
-        extraPackages = with pkgs; [ watchexec ];
-        shellHook = copyStdlib + ''
-          mkdir -p "$_cache/ibisfs-dev"
-          printf '%s\n' "$_stdlib/standard-library.agda-lib" \
-            > "$_cache/ibisfs-dev/libraries"
-          export AGDA_DIR="$_cache/ibisfs-dev"
-        '';
       };
 
+      # API per i consumer downstream: chaina janus.lib.mkShell e
+      # aggiunge ibisfs alle libraries. Stdlib + janus + ibisfs in AGDA_DIR.
       lib.mkShell = { pkgs, extraPackages ? [], shellHook ? "" }:
-        piforge.lib.agda.mkShell {
-          inherit pkgs;
-          version             = "v28";
-          useRuntimeLibraries = true;
-          extraPackages = with pkgs; [ watchexec ] ++ extraPackages;
-          shellHook = copyStdlib + copyIbis + ''
+        janus.lib.mkShell {
+          inherit pkgs extraPackages;
+          shellHook = copyIbis + ''
             mkdir -p "$_cache/ibisfs-lib"
-            printf '%s\n%s\n' \
+            printf '%s\n%s\n%s\n' \
               "$_stdlib/standard-library.agda-lib" \
+              "$_jns/janus.agda-lib" \
               "$_ibs/ibisfs.agda-lib" \
               > "$_cache/ibisfs-lib/libraries"
             export AGDA_DIR="$_cache/ibisfs-lib"

@@ -34,6 +34,29 @@
         "type": "github"
       }
     },
+    "janus": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "piforge": [
+          "piforge"
+        ]
+      },
+      "locked": {
+        "lastModified": 1780476320,
+        "narHash": "sha256-sC874WmzbEf+xmL1Vo8yZum8UiFqXV/4k95yAbUzA+g=",
+        "ref": "refs/heads/main",
+        "rev": "153cbbe6fd6c178a17903822e9e0effab6824ebc",
+        "revCount": 2,
+        "type": "git",
+        "url": "file:///home/a.vitturi/personal/janus"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/a.vitturi/personal/janus"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1779796641,
@@ -74,6 +97,7 @@
     },
     "root": {
       "inputs": {
+        "janus": "janus",
         "nixpkgs": "nixpkgs",
         "piforge": "piforge"
       }
