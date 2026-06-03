@@ -17,49 +17,70 @@ sono commenti nella documentazione: sono teoremi verificati da Agda.**
 
 ## Demo in 60 secondi
 
+Due esempi che mostrano cosa si può costruire — non i singoli costruttori,
+i *pattern d'uso*. Entrambi compilano e girano end-to-end via Janus + GHC.
+
+### `Examples/AtomicInstall.agda` — installer che non sovrascrive mai
+
 ```text
 $ nix develop
 $ agda --library-file=$AGDA_DIR/libraries --compile --compile-dir=Examples \
-       Examples/POSIX.agda
-$ ./Examples/POSIX
+       Examples/AtomicInstall.agda
+$ ./Examples/AtomicInstall
 
-IbisFS.Runtime.POSIX demo — refined paths + Result al confine
+Esempio: AtomicInstall — install-once via refined types
+────────────────────────────────────────────────────────
+target:  /tmp/ibisfs-demo-config.cfg
 
-PROMOTE /etc/hostname:
-  ↳ esiste (ExistsPath posixFS in mano)
-PROMOTE /no/such/path:
-  ↳ libero (FreshPath posixFS in mano)
+[1] prima install (atteso INSTALLED)
+    INSTALLED:        /tmp/ibisfs-demo-config.cfg
+[2] secondo install con body diverso (atteso REFUSED)
+    REFUSED (esiste): /tmp/ibisfs-demo-config.cfg
+[3] readback: il body iniziale è preservato
+  on disk:        "log_level=info; timeout=30"
 
-READ /etc/hostname:
-  ↳ letto
-READ /etc/shadow:
-  ↳ errore: EACCES (permessi insufficienti)        ← cattura tipata di IOException
-READ /no/such/path:
-  ↳ libero, niente da leggere                       ← il typechecker l'aveva già capito
+(cleanup eseguito)
 ```
+
+**Il punto:** `writeFile-fresh-IO` accetta **solo** un `FreshPath`. Il
+secondo install riceve un `ExistsPath` dal `promote-IO` — e su quel ramo
+il typechecker rifiuta di farti chiamare `writeFile-fresh-IO`. Non c'è
+un "controllo runtime separato" da dimenticare: **la regola dell'installer
+è codificata nei tipi**.
+
+### `Examples/Backup.agda` — POSIX → S3 cross-runtime, quattro esiti tipati
 
 ```text
-$ ./Examples/S3
+$ ./Examples/Backup
 
-IbisFS.Runtime.S3 demo — lifecycle su bucket in-memory
+Esempio: Backup — POSIX → S3 cross-runtime
+──────────────────────────────────────────
 
-[1] promote (atteso libero):              ↳ libero
-[2] put (se libero):                       ↳ put OK
-[3] promote dopo put (atteso esiste):      ↳ esiste
-[4] get (se esiste):                       ↳ get OK | content = "{"answer":42}"
-[5] delete (se esiste):                    ↳ delete OK
-[6] promote dopo delete (atteso libero):   ↳ libero
+[1] caso felice (source esiste, target libero)
+    OK:                    /etc/hostname → s3://backups/hostname-2026-06-03
+[2] source missing (file non esistente)
+    SOURCE_MISSING:        /no/such/file
+[3] target esiste (re-backup della stessa chiave)
+    TARGET_EXISTS:         backups/hostname-2026-06-03
+[4] source no read (permessi insufficienti)
+    SOURCE_READ_FAILED:    EACCES
 ```
 
-Quello che vedi:
+**Il punto:** una pipeline di quattro step (promote POSIX → readFile →
+promote S3 → putObject), ognuno con il suo errore tipato. Lo stesso
+`ExistsPath` / `FreshPath` di `IbisFS.Verified` lavora indifferentemente
+su POSIX e S3. Il body letto da POSIX (`String`) scivola senza adattatori
+nel `putObject-fresh-IO` di S3. **Una sola astrazione, due backend.**
 
-- **Path raffinati** (`ExistsPath`, `FreshPath`) attraversano il confine
-  FFI Agda↔Haskell mantenendo la prova.
-- **Result tipati** (`Result FSError`, `Result S3Error`) sostituiscono le
-  eccezioni Haskell invisibili: il caller è obbligato dal typechecker a
-  pattern-matchare entrambi i casi.
-- **Lo stesso codice IbisFS** (`ExistsPath`, `promote-IO`, `getObject-IO`)
-  funziona uguale per filesystem POSIX e per object store cloud-shaped.
+Cosa pagano i tipi raffinati nel concreto:
+
+- Il caller di `backup` non può ignorare nessuno dei quattro fallimenti.
+  Il typechecker richiede un pattern match esaustivo su `_⊎_` e su `Result`.
+- Non c'è un "default exception handler" che cattura `IOException` a
+  caso. Le eccezioni Haskell sono catturate in `guarded` UNA volta al
+  confine, tradotte in `FSError`, e poi consumate esplicitamente.
+- Se domani sostituisci `IbisFS.Runtime.S3` con `amazonka.S3` reale, la
+  pipeline `backup` non cambia di una riga.
 
 ## La visione
 
@@ -94,8 +115,8 @@ diff a b          ≡  (a \\ b) ∪ (b \\ a)
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │  Examples/                                                      │
-│   POSIX.agda    lifecycle locale (read /etc, gestione EACCES)   │
-│   S3.agda       lifecycle cloud (put/get/delete, in-memory)     │
+│   AtomicInstall.agda    installer che non sovrascrive (POSIX)   │
+│   Backup.agda           pipeline POSIX → S3, 4 esiti tipati     │
 └──────┬─────────────────────────────────────────────────────────┘
        │
 ┌──────▼─────────────────────────────────────────────────────────┐
@@ -174,8 +195,8 @@ postulati non documentati, niente extensionality, niente assiomi extra.**
 | `IbisFS.Runtime.Result` | 23 | `Result E A` condiviso tra i runtime |
 | `IbisFS.Runtime.POSIX` | 184 | bridge POSIX, `Result FSError`, FFI con guarded catch |
 | `IbisFS.Runtime.S3` | 174 | bridge S3 in-memory, `Result S3Error`, swappabile per amazonka |
-| **Examples/POSIX.agda** | 59 | demo eseguibile: read da `/etc/*`, cattura EACCES |
-| **Examples/S3.agda** | 96 | demo eseguibile: lifecycle put/get/delete |
+| **Examples/AtomicInstall.agda** | 96 | installer che non sovrascrive (POSIX) |
+| **Examples/Backup.agda** | 89 | pipeline POSIX → S3, 4 esiti tipati |
 
 Totale codice IbisFS: ~1180 righe. Dipendenza esterna: Janus (~140 righe).
 
@@ -267,41 +288,81 @@ precedenti (`deleteFile-writeFile-same` + `deleteFile-idem` + `∪-cong`).
 
 ## Esempi
 
-`Examples/` contiene due demo eseguibili end-to-end che mostrano
-l'integrazione completa: refined types in Agda + Result tipato al
-confine FFI + effetti reali.
+`Examples/` contiene due use case eseguibili — pattern realistici che
+mostrano cosa si può *costruire* con IbisFS, non i singoli costruttori
+dell'API. Entrambi compilano end-to-end (Agda → MAlonzo → GHC → binary).
 
-### `Examples/POSIX.agda`
+### `Examples/AtomicInstall.agda` — install-once via refined types
 
-Lifecycle di `promote → read`, gestendo i tre casi:
-- path che esiste ed è leggibile (`/etc/hostname`) → `ok content`
-- path che esiste ma non è leggibile (`/etc/shadow`) → `err permissionDenied`
-- path che non esiste (`/no/such/path`) → classificato come `FreshPath`,
-  niente read
+**Use case:** un installer che scrive un file di config in `/tmp` (o
+`/etc`). REGOLA: deve CREARE il file se libero, RIFIUTARSI di sovrascrivere
+se esiste già (per non clobberare modifiche dell'utente).
 
-```bash
-agda --library-file=$AGDA_DIR/libraries --compile --compile-dir=Examples \
-     Examples/POSIX.agda
-./Examples/POSIX
+In codice non-tipato è `if exists(p) then refuse else write`, e il
+typechecker non protegge da chi dimentica il check. In IbisFS,
+`writeFile-fresh-IO` accetta **solo** `FreshPath posixFS`. Sovrascrivere
+è **strutturalmente impossibile**:
+
+```agda
+install : String → Content → IO String
+install path body =
+  promote-IO path >>= λ classification → go classification
+  where
+    go : ExistsPath posixFS ⊎ FreshPath posixFS → IO String
+    go (inj₁ _)     = return ("REFUSED (esiste): " ++ path)
+    go (inj₂ fresh) = writeFile-fresh-IO fresh body >>= λ r → return (format r)
+                                      -- ↑ legale SOLO sul ramo inj₂
 ```
 
-### `Examples/S3.agda`
+```bash
+agda --library-file=$AGDA_DIR/libraries --compile --compile-dir=Examples \
+     Examples/AtomicInstall.agda
+./Examples/AtomicInstall
+```
 
-Lifecycle completo su un bucket S3 simulato in-memory:
-`promote (libero) → put → promote (esiste) → get → delete → promote (libero)`.
+### `Examples/Backup.agda` — POSIX → S3 cross-runtime
 
-Lo stato è mantenuto in un `IORef (Map T.Text T.Text)` lato Haskell, e
-attraversa il confine FFI sei volte mediato dai tipi raffinati Agda.
+**Use case:** legge un file dal filesystem locale e lo carica su S3
+con chiave derivata. Quattro possibili fallimenti, tutti tipizzati ed
+esaustivamente gestiti:
+
+| Esito | Origine |
+|---|---|
+| `SOURCE_MISSING` | POSIX `promote-IO` ritorna `FreshPath` |
+| `SOURCE_READ_FAILED: EACCES` | POSIX `readFile-IO` ritorna `err permissionDenied` |
+| `TARGET_EXISTS` | S3 `promote-IO` ritorna `ExistsPath` (rifiutiamo overwrite) |
+| `TARGET_UPLOAD_FAILED` | S3 `putObject-fresh-IO` ritorna `err` |
+
+```agda
+backup : String → String → IO String
+backup posixSrc s3Dst =
+  P.promote-IO posixSrc >>= step1
+  where
+    step1 (inj₂ _)         = return ("SOURCE_MISSING: " ++ posixSrc)
+    step1 (inj₁ srcExists) = P.readFile-IO srcExists >>= step2
+    step2 (err e)          = return ("SOURCE_READ_FAILED: " ++ describeP e)
+    step2 (ok body)        = S.promote-IO s3Dst >>= step3 body
+    step3 _    (inj₁ _)        = return ("TARGET_EXISTS: " ++ s3Dst)
+    step3 body (inj₂ dstFresh) = S.putObject-fresh-IO dstFresh body >>= step4
+    step4 (ok _)  = return ("OK: " ++ posixSrc ++ " → s3://" ++ s3Dst)
+    step4 (err e) = return ("TARGET_UPLOAD_FAILED: " ++ describeS e)
+```
+
+Lo stesso `ExistsPath` / `FreshPath` di `IbisFS.Verified` lavora
+indifferentemente su POSIX (`P.`) e S3 (`S.`). Il `body : Content`
+letto da POSIX scivola senza adattatori nel `putObject` di S3 perché
+entrambi i runtime istanziano `Content = String`. **Una sola astrazione,
+due backend.**
 
 ```bash
 agda --library-file=$AGDA_DIR/libraries --compile --compile-dir=Examples \
-     Examples/S3.agda
-./Examples/S3
+     Examples/Backup.agda
+./Examples/Backup
 ```
 
 In produzione si sostituisce il blocco `FOREIGN GHC` di
 `IbisFS.Runtime.S3` con chiamate `amazonka.S3.{headObject,getObject,
-putObject,deleteObject}`. **L'API Agda di sopra non cambia di una riga.**
+putObject,deleteObject}`. **La pipeline `backup` non cambia di una riga.**
 
 ## Quick start
 
@@ -317,12 +378,12 @@ agda --library-file=$AGDA_DIR/libraries IbisFS/Runtime/POSIX.agda
 
 ```bash
 agda --library-file=$AGDA_DIR/libraries --compile --compile-dir=Examples \
-     Examples/POSIX.agda
-./Examples/POSIX
+     Examples/AtomicInstall.agda
+./Examples/AtomicInstall
 
 agda --library-file=$AGDA_DIR/libraries --compile --compile-dir=Examples \
-     Examples/S3.agda
-./Examples/S3
+     Examples/Backup.agda
+./Examples/Backup
 ```
 
 ### Come libreria (per i consumer)
@@ -435,9 +496,11 @@ Per un lettore nuovo a Agda o ai reticoli:
    union directories di Plan 9 sono `_∪_`, punto.
 5. **`IbisFS/Verified.agda`**. Il punto in cui i tipi raffinati entrano
    in gioco. `ExistsPath`, `FreshPath`. La conessione con Janus.Refine.
-6. **`IbisFS/Runtime/POSIX.agda` + `Examples/POSIX.agda`**. Il momento in
-   cui tutto tocca il mondo reale via FFI. Trust boundary esplicito;
-   tutto il resto rimane dimostrato.
+6. **`IbisFS/Runtime/POSIX.agda` + `Examples/AtomicInstall.agda`**.
+   Il momento in cui tutto tocca il mondo reale via FFI. Trust boundary
+   esplicito; tutto il resto rimane dimostrato. L'esempio
+   `AtomicInstall` mostra come un pattern reale (installer che non
+   sovrascrive) cade naturalmente dai tipi raffinati.
 
 Tempi indicativi (Agda intermedio): 2–4 ore per leggere tutto e
 comprendere il pattern. Aggiungere o modificare un teorema: ~15 minuti.
